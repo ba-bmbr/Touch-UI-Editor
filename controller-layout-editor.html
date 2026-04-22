@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controller Layout Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0d14; --surface: #13131f; --canvas-bg: #1a1a2e;
+    --border: rgba(255,255,255,0.08); --border-hover: rgba(255,255,255,0.18);
+    --accent: #7f77dd; --accent-dim: rgba(127,119,221,0.2);
+    --text: #e8e8f0; --text-dim: rgba(232,232,240,0.45);
+    --green: #4ade80; --panel-bg: rgba(13,13,20,0.97);
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 40px; }
+  header { width: 100%; max-width: 900px; display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
+  .logo { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+  .logo span { color: var(--accent); }
+  .tagline { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); letter-spacing: 0.05em; }
+  .toolbar { width: 100%; max-width: 900px; display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+  .toolbar-group { display: flex; gap: 6px; align-items: center; }
+  .toolbar-divider { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+  .toolbar-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+  button { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-dim); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  button:hover { border-color: var(--border-hover); color: var(--text); background: rgba(255,255,255,0.05); }
+  button.accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.accent:hover { background: #9490e8; }
+  button.danger { border-color: rgba(239,68,68,0.3); color: rgba(239,68,68,0.7); }
+  button.danger:hover { border-color: rgba(239,68,68,0.6); color: #ef4444; background: rgba(239,68,68,0.08); }
+  input[type="text"] { font-family: 'DM Mono', monospace; font-size: 12px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); outline: none; width: 160px; transition: border-color 0.15s; }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]::placeholder { color: var(--text-dim); }
+  .hint-bar { width: 100%; max-width: 900px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.04em; margin-bottom: 10px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .hint-bar span::before { content: '· '; }
+
+  /* The canvas has a fixed pixel size — no scaling tricks */
+  .canvas-outer { width: 100%; max-width: 900px; overflow-x: auto; }
+  .canvas {
+    position: relative;
+    background: var(--canvas-bg);
+    border-radius: 28px;
+    width: 860px;
+    height: 420px;
+    border: 1.5px solid var(--border);
+    user-select: none;
+    cursor: default;
+    flex-shrink: 0;
+  }
+
+  .btn { position: absolute; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.88); background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.35); border-radius: 50%; cursor: grab; box-sizing: border-box; touch-action: none; }
+  .btn:hover { border-color: rgba(255,255,255,0.55); }
+  .btn.pill { border-radius: 100px; }
+  .btn.rect { border-radius: 10px; }
+  .btn.selected { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 50; }
+  .btn.dragging { cursor: grabbing; z-index: 100; }
+  .joystick-inner { width: 38%; height: 38%; border-radius: 50%; background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.35); pointer-events: none; }
+  .resize-handle { position: absolute; bottom: -6px; right: -6px; width: 13px; height: 13px; background: var(--accent); border-radius: 50%; cursor: se-resize; z-index: 101; display: none; border: 2px solid #0d0d14; }
+  .btn.selected .resize-handle { display: block; }
+
+  .status-dot { position: absolute; top: 14px; right: 18px; display: flex; align-items: center; gap: 5px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--green); pointer-events: none; letter-spacing: 0.05em; }
+  .status-dot::before { content: ''; display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+
+  .size-panel { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: var(--panel-bg); border: 1px solid var(--border-hover); border-radius: 12px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.15s; white-space: nowrap; }
+  .size-panel.visible { opacity: 1; pointer-events: all; }
+  .size-panel label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em; }
+  .size-panel input[type=range] { width: 80px; accent-color: var(--accent); cursor: pointer; padding: 0; border: none; background: none; }
+  .size-panel .val { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text); min-width: 28px; }
+  .size-panel .sep { width: 1px; height: 16px; background: var(--border); }
+
+  .saved-panel { width: 100%; max-width: 900px; margin-top: 16px; }
+  .saved-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
+  .saved-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .saved-item { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--text-dim); }
+  .saved-item:hover { border-color: var(--border-hover); color: var(--text); }
+  .saved-item button { padding: 2px 8px; font-size: 11px; border-radius: 5px; border: none; background: var(--accent-dim); color: var(--accent); margin: 0; }
+  .saved-item button:hover { background: var(--accent); color: #fff; }
+  .saved-item .del-btn { background: rgba(239,68,68,0.1); color: rgba(239,68,68,0.6); padding: 2px 6px; }
+  .saved-item .del-btn:hover { background: rgba(239,68,68,0.2); color: #ef4444; }
+  .empty-state { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); padding: 10px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">layout<span>.</span>editor</div>
+  <div class="tagline">touch controller designer</div>
+</header>
+
+<div class="toolbar">
+  <div class="toolbar-group">
+    <span class="toolbar-label">Add</span>
+    <button onclick="addButton('joystick')">+ Joystick</button>
+    <button onclick="addButton('face')">+ Face btn</button>
+    <button onclick="addButton('bumper')">+ Bumper</button>
+    <button onclick="addButton('pill')">+ Pill btn</button>
+  </div>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-group">
+    <button class="danger" onclick="deleteSelected()">Delete selected</button>
+    <button onclick="resetLayout()">Reset</button>
+  </div>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-group">
+    <span class="toolbar-label">Save</span>
+    <input type="text" id="saveName" placeholder="Layout name…" maxlength="30">
+    <button class="accent" onclick="saveLayout()">Save layout</button>
+  </div>
+</div>
+
+<div class="hint-bar">
+  <span>Click to select</span>
+  <span>Drag to move</span>
+  <span>Purple dot to resize</span>
+  <span>W/H sliders for precision</span>
+  <span>Delete key to remove</span>
+</div>
+
+<div class="canvas-outer">
+  <div class="canvas" id="canvas">
+    <div class="status-dot">Connected</div>
+
+    <div class="btn pill" data-id="gyro"          style="width:90px;height:28px;left:300px;top:14px;">⟳ Gyro Off<div class="resize-handle"></div></div>
+    <div class="btn pill" data-id="playon"         style="width:122px;height:28px;left:406px;top:14px;">▶ Play on Phone<div class="resize-handle"></div></div>
+    <div class="btn pill" data-id="start"          style="width:82px;height:32px;left:340px;top:62px;">Start<div class="resize-handle"></div></div>
+    <div class="btn pill" data-id="select"         style="width:82px;height:32px;left:340px;top:106px;">Select<div class="resize-handle"></div></div>
+    <div class="btn rect" data-id="lt"             style="width:52px;height:36px;left:28px;top:220px;">LT<div class="resize-handle"></div></div>
+    <div class="btn rect" data-id="lb"             style="width:52px;height:36px;left:28px;top:268px;">LB<div class="resize-handle"></div></div>
+    <div class="btn rect" data-id="rt"             style="width:52px;height:36px;left:780px;top:220px;">RT<div class="resize-handle"></div></div>
+    <div class="btn rect" data-id="rb"             style="width:52px;height:36px;left:780px;top:268px;">RB<div class="resize-handle"></div></div>
+    <div class="btn"      data-id="btn-x"          style="width:56px;height:56px;left:672px;top:60px;">X<div class="resize-handle"></div></div>
+    <div class="btn"      data-id="btn-a"          style="width:56px;height:56px;left:610px;top:116px;">A<div class="resize-handle"></div></div>
+    <div class="btn"      data-id="btn-b"          style="width:56px;height:56px;left:734px;top:116px;">B<div class="resize-handle"></div></div>
+    <div class="btn"      data-id="btn-y"          style="width:56px;height:56px;left:672px;top:172px;">Y<div class="resize-handle"></div></div>
+    <div class="btn"      data-id="joystick-left"  style="width:150px;height:150px;left:110px;top:200px;"><div class="joystick-inner"></div><div class="resize-handle"></div></div>
+    <div class="btn"      data-id="joystick-right" style="width:150px;height:150px;left:450px;top:200px;"><div class="joystick-inner"></div><div class="resize-handle"></div></div>
+
+    <div class="size-panel" id="sizePanel">
+      <label>W</label>
+      <input type="range" id="wSlider" min="20" max="240" step="1">
+      <span class="val" id="wVal">—</span>
+      <div class="sep"></div>
+      <label>H</label>
+      <input type="range" id="hSlider" min="20" max="240" step="1">
+      <span class="val" id="hVal">—</span>
+    </div>
+  </div>
+</div>
+
+<div class="saved-panel">
+  <div class="saved-title">Saved layouts</div>
+  <div class="saved-list" id="savedList"></div>
+</div>
+
+<script>
+(function() {
+  const canvas    = document.getElementById('canvas');
+  const sizePanel = document.getElementById('sizePanel');
+  const wSlider   = document.getElementById('wSlider');
+  const hSlider   = document.getElementById('hSlider');
+  const wVal      = document.getElementById('wVal');
+  const hVal      = document.getElementById('hVal');
+
+  let selectedEl  = null;
+  let uidCounter  = 200;
+  const defaultState = [];
+
+  canvas.querySelectorAll('.btn').forEach(el => {
+    defaultState.push(captureEl(el));
+    initEl(el);
+  });
+
+  canvas.addEventListener('mousedown', function(e) {
+    if (!e.target.closest('.btn') && !e.target.closest('#sizePanel')) deselect();
+  });
+
+  function captureEl(el) {
+    return {
+      id: el.dataset.id,
+      left: parseFloat(el.style.left), top: parseFloat(el.style.top),
+      width: parseFloat(el.style.width), height: parseFloat(el.style.height),
+      className: el.className.replace(/\b(selected|dragging)\b/g,'').trim(),
+      html: el.innerHTML
+    };
+  }
+
+  function initEl(el) {
+    el.addEventListener('mousedown', function(e) {
+      if (e.target.classList.contains('resize-handle')) return;
+      e.preventDefault(); e.stopPropagation();
+      selectEl(el);
+      startDrag(el, e.clientX, e.clientY);
+    });
+    el.addEventListener('touchstart', function(e) {
+      if (e.target.classList.contains('resize-handle')) return;
+      e.preventDefault(); e.stopPropagation();
+      selectEl(el);
+      startDrag(el, e.touches[0].clientX, e.touches[0].clientY, true);
+    }, { passive: false });
+
+    const handle = el.querySelector('.resize-handle');
+    if (!handle) return;
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      startResize(el, e.clientX, e.clientY);
+    });
+    handle.addEventListener('touchstart', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      startResize(el, e.touches[0].clientX, e.touches[0].clientY, true);
+    }, { passive: false });
+  }
+
+  function selectEl(el) {
+    if (selectedEl && selectedEl !== el) selectedEl.classList.remove('selected');
+    selectedEl = el;
+    el.classList.add('selected');
+    sizePanel.classList.add('visible');
+    syncSliders();
+  }
+
+  function deselect() {
+    if (selectedEl) selectedEl.classList.remove('selected');
+    selectedEl = null;
+    sizePanel.classList.remove('visible');
+  }
+
+  function syncSliders() {
+    if (!selectedEl) return;
+    const w = Math.round(parseFloat(selectedEl.style.width));
+    const h = Math.round(parseFloat(selectedEl.style.height));
+    wSlider.value = w; wVal.textContent = w;
+    hSlider.value = h; hVal.textContent = h;
+  }
+
+  wSlider.addEventListener('input', function() {
+    if (!selectedEl) return;
+    selectedEl.style.width = wSlider.value + 'px';
+    wVal.textContent = wSlider.value;
+  });
+  hSlider.addEventListener('input', function() {
+    if (!selectedEl) return;
+    selectedEl.style.height = hSlider.value + 'px';
+    hVal.textContent = hSlider.value;
+  });
+
+  function startDrag(el, startCX, startCY, isTouch) {
+    const startLeft = parseFloat(el.style.left);
+    const startTop  = parseFloat(el.style.top);
+    // Get canvas position once at drag start
+    const cr = canvas.getBoundingClientRect();
+    el.classList.add('dragging');
+
+    function move(cx, cy) {
+      const dx = cx - startCX;
+      const dy = cy - startCY;
+      const w = parseFloat(el.style.width);
+      const h = parseFloat(el.style.height);
+      const maxLeft = canvas.offsetWidth  - w;
+      const maxTop  = canvas.offsetHeight - h;
+      el.style.left = Math.max(0, Math.min(maxLeft, startLeft + dx)) + 'px';
+      el.style.top  = Math.max(0, Math.min(maxTop,  startTop  + dy)) + 'px';
+    }
+
+    function onMove(e)      { move(e.clientX, e.clientY); }
+    function onTouch(e)     { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }
+    function end() {
+      el.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', end);
+      document.removeEventListener('touchmove', onTouch);
+      document.removeEventListener('touchend', end);
+    }
+    if (isTouch) { document.addEventListener('touchmove', onTouch, { passive: false }); document.addEventListener('touchend', end); }
+    else         { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', end); }
+  }
+
+  function startResize(el, startCX, startCY, isTouch) {
+    const startW = parseFloat(el.style.width);
+    const startH = parseFloat(el.style.height);
+
+    function move(cx, cy) {
+      const newW = Math.max(20, startW + (cx - startCX));
+      const newH = Math.max(20, startH + (cy - startCY));
+      el.style.width  = newW + 'px';
+      el.style.height = newH + 'px';
+      if (selectedEl === el) syncSliders();
+    }
+
+    function onMove(e)  { move(e.clientX, e.clientY); }
+    function onTouch(e) { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }
+    function end() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', end);
+      document.removeEventListener('touchmove', onTouch);
+      document.removeEventListener('touchend', end);
+    }
+    if (isTouch) { document.addEventListener('touchmove', onTouch, { passive: false }); document.addEventListener('touchend', end); }
+    else         { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', end); }
+  }
+
+  window.addButton = function(type) {
+    const el  = document.createElement('div');
+    el.dataset.id = 'btn-' + (uidCounter++);
+    const cx = canvas.offsetWidth  / 2;
+    const cy = canvas.offsetHeight / 2;
+    if (type === 'joystick') {
+      el.className = 'btn';
+      el.style.cssText = `width:140px;height:140px;left:${cx-70}px;top:${cy-70}px;`;
+      el.innerHTML = '<div class="joystick-inner"></div><div class="resize-handle"></div>';
+    } else if (type === 'face') {
+      el.className = 'btn';
+      el.style.cssText = `width:52px;height:52px;left:${cx-26}px;top:${cy-26}px;`;
+      el.innerHTML = '●<div class="resize-handle"></div>';
+    } else if (type === 'bumper') {
+      el.className = 'btn rect';
+      el.style.cssText = `width:52px;height:36px;left:${cx-26}px;top:${cy-18}px;`;
+      el.innerHTML = 'BTN<div class="resize-handle"></div>';
+    } else {
+      el.className = 'btn pill';
+      el.style.cssText = `width:80px;height:30px;left:${cx-40}px;top:${cy-15}px;`;
+      el.innerHTML = 'Button<div class="resize-handle"></div>';
+    }
+    canvas.appendChild(el);
+    initEl(el);
+    selectEl(el);
+  };
+
+  window.deleteSelected = function() {
+    if (!selectedEl) return;
+    selectedEl.remove(); selectedEl = null;
+    sizePanel.classList.remove('visible');
+  };
+
+  document.addEventListener('keydown', function(e) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedEl && document.activeElement.tagName !== 'INPUT') deleteSelected();
+  });
+
+  window.resetLayout = function() {
+    canvas.querySelectorAll('.btn').forEach(el => el.remove());
+    defaultState.forEach(s => {
+      const el = document.createElement('div');
+      el.dataset.id = s.id; el.className = s.className;
+      el.style.left = s.left+'px'; el.style.top = s.top+'px';
+      el.style.width = s.width+'px'; el.style.height = s.height+'px';
+      el.innerHTML = s.html;
+      canvas.appendChild(el); initEl(el);
+    });
+    deselect();
+  };
+
+  function getLayouts()        { try { return JSON.parse(localStorage.getItem('ctrl_layouts')||'{}'); } catch { return {}; } }
+  function setLayouts(l)       { localStorage.setItem('ctrl_layouts', JSON.stringify(l)); }
+  function captureLayout()     { return Array.from(canvas.querySelectorAll('.btn')).map(captureEl); }
+  function applyLayout(btns)   {
+    canvas.querySelectorAll('.btn').forEach(el => el.remove());
+    btns.forEach(s => {
+      const el = document.createElement('div');
+      el.dataset.id = s.id; el.className = s.className;
+      el.style.left = s.left+'px'; el.style.top = s.top+'px';
+      el.style.width = s.width+'px'; el.style.height = s.height+'px';
+      el.innerHTML = s.html;
+      canvas.appendChild(el); initEl(el);
+    });
+    deselect();
+  }
+
+  window.saveLayout = function() {
+    const name = document.getElementById('saveName').value.trim() || ('Layout '+new Date().toLocaleTimeString());
+    const l = getLayouts(); l[name] = captureLayout(); setLayouts(l);
+    document.getElementById('saveName').value = '';
+    renderSaved();
+  };
+
+  function renderSaved() {
+    const l = getLayouts(); const keys = Object.keys(l);
+    const sl = document.getElementById('savedList');
+    sl.innerHTML = keys.length ? '' : '<div class="empty-state">No saved layouts yet.</div>';
+    keys.forEach(name => {
+      const safe = name.replace(/'/g,"\\'");
+      const item = document.createElement('div');
+      item.className = 'saved-item';
+      item.innerHTML = `<span>${name}</span><button onclick="loadLayout('${safe}')">Load</button><button class="del-btn" onclick="deleteLayout('${safe}')">✕</button>`;
+      sl.appendChild(item);
+    });
+  }
+
+  window.loadLayout   = function(n) { const l=getLayouts(); if(l[n]) applyLayout(l[n]); };
+  window.deleteLayout = function(n) { const l=getLayouts(); delete l[n]; setLayouts(l); renderSaved(); };
+
+  renderSaved();
+})();
+</script>
+</body>
+</html>

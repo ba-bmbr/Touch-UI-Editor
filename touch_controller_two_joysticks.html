@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touch Controller Wireframe — Two Joysticks</title>
+<style>
+  body { margin: 0; padding: 24px; background: #111; display: flex; flex-direction: column; align-items: center; font-family: sans-serif; }
+  .canvas { position: relative; background: #1a1a2e; border-radius: 32px; width: 680px; height: 360px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2); user-select: none; }
+  .btn { position: absolute; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.4); border-radius: 50%; cursor: grab; box-sizing: border-box; }
+  .btn.pill { border-radius: 14px; }
+  .btn.rect { border-radius: 8px; }
+  .btn.active { cursor: grabbing; outline: 2px solid #7F77DD; z-index: 999; }
+  .status { position: absolute; top: 12px; right: 16px; font-size: 10px; color: #4ade80; display: flex; align-items: center; gap: 4px; pointer-events: none; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; }
+  .joystick-inner { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.18); border: 1.5px solid rgba(255,255,255,0.4); pointer-events: none; }
+  .reset { display: block; margin: 8px auto 0; padding: 5px 18px; font-size: 12px; background: transparent; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: rgba(255,255,255,0.5); cursor: pointer; }
+  .reset:hover { background: rgba(255,255,255,0.05); }
+  .hint { text-align: center; font-size: 12px; color: rgba(255,255,255,0.4); margin: 0 0 8px; }
+</style>
+</head>
+<body>
+  <p class="hint">Drag any button to reposition it</p>
+  <div class="canvas" id="canvas">
+    <div class="status"><span class="dot"></span>Connected</div>
+    <div class="btn" data-id="joystick-left" style="width:110px;height:110px;left:60px;top:120px;"><div class="joystick-inner"></div></div>
+    <div class="btn" data-id="joystick-right" style="width:110px;height:110px;left:460px;top:210px;"><div class="joystick-inner"></div></div>
+    <div class="btn rect" data-id="lt" style="width:44px;height:30px;left:40px;top:18px;">LT</div>
+    <div class="btn rect" data-id="lb" style="width:44px;height:30px;left:92px;top:18px;">LB</div>
+    <div class="btn rect" data-id="rt" style="width:44px;height:30px;left:544px;top:18px;">RT</div>
+    <div class="btn rect" data-id="rb" style="width:44px;height:30px;left:596px;top:18px;">RB</div>
+    <div class="btn pill" data-id="select" style="width:64px;height:28px;left:294px;top:148px;">Select</div>
+    <div class="btn pill" data-id="start" style="width:58px;height:28px;left:322px;top:186px;">Start</div>
+    <div class="btn pill" data-id="gyro" style="width:82px;height:28px;left:298px;top:78px;">⟳ Gyro Off</div>
+    <div class="btn pill" data-id="playon" style="width:104px;height:28px;left:286px;top:256px;">▶ Play on Phone</div>
+    <div class="btn" data-id="btn-x" style="width:48px;height:48px;left:500px;top:78px;">X</div>
+    <div class="btn" data-id="btn-a" style="width:48px;height:48px;left:452px;top:126px;">A</div>
+    <div class="btn" data-id="btn-b" style="width:48px;height:48px;left:548px;top:126px;">B</div>
+    <div class="btn" data-id="btn-y" style="width:48px;height:48px;left:500px;top:174px;">Y</div>
+  </div>
+  <button class="reset" id="resetBtn">Reset layout</button>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const saved = {};
+
+    canvas.querySelectorAll('.btn').forEach(el => {
+      saved[el.dataset.id] = { left: parseInt(el.style.left), top: parseInt(el.style.top) };
+      el.addEventListener('mousedown', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        drag(el, e.clientX, e.clientY, false);
+      });
+      el.addEventListener('touchstart', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        drag(el, e.touches[0].clientX, e.touches[0].clientY, true);
+      }, { passive: false });
+    });
+
+    function drag(el, startClientX, startClientY, isTouch) {
+      const startLeft = parseInt(el.style.left);
+      const startTop = parseInt(el.style.top);
+      el.classList.add('active');
+      function move(cx, cy) {
+        el.style.left = Math.max(0, Math.min(canvas.offsetWidth - el.offsetWidth, startLeft + cx - startClientX)) + 'px';
+        el.style.top = Math.max(0, Math.min(canvas.offsetHeight - el.offsetHeight, startTop + cy - startClientY)) + 'px';
+      }
+      function onMouseMove(e) { move(e.clientX, e.clientY); }
+      function onTouchMove(e) { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }
+      function end() {
+        el.classList.remove('active');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', end);
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', end);
+      }
+      if (isTouch) {
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', end);
+      } else {
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', end);
+      }
+    }
+
+    document.getElementById('resetBtn').addEventListener('click', function() {
+      canvas.querySelectorAll('.btn').forEach(el => {
+        const s = saved[el.dataset.id];
+        if (s) { el.style.left = s.left + 'px'; el.style.top = s.top + 'px'; }
+      });
+    });
+  </script>
+</body>
+</html>
