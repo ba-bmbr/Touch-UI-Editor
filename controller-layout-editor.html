@@ -48,7 +48,7 @@
     flex-shrink: 0;
   }
 
-  .btn { position: absolute; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.88); background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.35); border-radius: 50%; cursor: grab; box-sizing: border-box; touch-action: none; overflow: hidden; }
+  .btn { position: absolute; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.88); background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.35); border-radius: 50%; cursor: grab; box-sizing: border-box; touch-action: none; overflow: visible; }
   .btn:hover { border-color: rgba(255,255,255,0.55); }
   .btn.pill { border-radius: 100px; }
   .btn.rect { border-radius: 10px; }
@@ -57,8 +57,23 @@
   .btn .label { pointer-events: none; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .joystick-inner { width: 38%; height: 38%; border-radius: 50%; background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.35); pointer-events: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
   .btn.joystick .label { position: absolute; bottom: 6px; left: 0; right: 0; font-size: 10px; text-align: center; color: rgba(255,255,255,0.6); pointer-events: none; }
-  .resize-handle { position: absolute; bottom: -6px; right: -6px; width: 13px; height: 13px; background: var(--accent); border-radius: 50%; cursor: se-resize; z-index: 101; display: none; border: 2px solid #0d0d14; }
-  .btn.selected .resize-handle { display: block; }
+
+  /* Resize handles - 8 points around the element */
+  .handle { position: absolute; background: var(--accent); border: 2px solid #0d0d14; z-index: 101; display: none; }
+  .btn.selected .handle { display: block; }
+  .handle.corner { width: 12px; height: 12px; border-radius: 50%; }
+  .handle.edge { background: var(--accent); border-radius: 3px; }
+  .handle.edge.h { width: 18px; height: 6px; }
+  .handle.edge.v { width: 6px; height: 18px; }
+
+  .h-nw { top: -7px;  left: -7px;  cursor: nw-resize; }
+  .h-ne { top: -7px;  right: -7px; cursor: ne-resize; }
+  .h-sw { bottom:-7px; left: -7px;  cursor: sw-resize; }
+  .h-se { bottom:-7px; right: -7px; cursor: se-resize; }
+  .h-n  { top: -4px;  left: 50%; transform: translateX(-50%); cursor: n-resize; }
+  .h-s  { bottom:-4px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+  .h-w  { left: -4px;  top: 50%; transform: translateY(-50%); cursor: w-resize; }
+  .h-e  { right:-4px;  top: 50%; transform: translateY(-50%); cursor: e-resize; }
 
   .status-dot { position: absolute; top: 14px; right: 18px; display: flex; align-items: center; gap: 5px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--green); pointer-events: none; letter-spacing: 0.05em; }
   .status-dot::before { content: ''; display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
@@ -113,9 +128,8 @@
 
 <div class="hint-bar">
   <span>Click to select</span>
-  <span>Drag to move</span>
-  <span>Purple dot to resize</span>
-  <span>Edit label in panel</span>
+  <span>Drag center to move</span>
+  <span>Drag any handle to resize</span>
   <span>Double-click to rename</span>
   <span>Delete key to remove</span>
 </div>
@@ -124,31 +138,31 @@
   <div class="canvas" id="canvas">
     <div class="status-dot">Connected</div>
 
-    <div class="btn pill" data-type="pill"          style="width:90px;height:28px;left:300px;top:14px;"><span class="label">⟳ Gyro Off</span><div class="resize-handle"></div></div>
-    <div class="btn pill" data-type="pill"          style="width:122px;height:28px;left:406px;top:14px;"><span class="label">▶ Play on Phone</span><div class="resize-handle"></div></div>
-    <div class="btn pill" data-type="pill"          style="width:82px;height:32px;left:340px;top:62px;"><span class="label">Start</span><div class="resize-handle"></div></div>
-    <div class="btn pill" data-type="pill"          style="width:82px;height:32px;left:340px;top:106px;"><span class="label">Select</span><div class="resize-handle"></div></div>
-    <div class="btn rect" data-type="bumper"        style="width:52px;height:36px;left:28px;top:220px;"><span class="label">LT</span><div class="resize-handle"></div></div>
-    <div class="btn rect" data-type="bumper"        style="width:52px;height:36px;left:28px;top:268px;"><span class="label">LB</span><div class="resize-handle"></div></div>
-    <div class="btn rect" data-type="bumper"        style="width:52px;height:36px;left:780px;top:220px;"><span class="label">RT</span><div class="resize-handle"></div></div>
-    <div class="btn rect" data-type="bumper"        style="width:52px;height:36px;left:780px;top:268px;"><span class="label">RB</span><div class="resize-handle"></div></div>
-    <div class="btn"      data-type="face"          style="width:56px;height:56px;left:672px;top:60px;"><span class="label">X</span><div class="resize-handle"></div></div>
-    <div class="btn"      data-type="face"          style="width:56px;height:56px;left:610px;top:116px;"><span class="label">A</span><div class="resize-handle"></div></div>
-    <div class="btn"      data-type="face"          style="width:56px;height:56px;left:734px;top:116px;"><span class="label">B</span><div class="resize-handle"></div></div>
-    <div class="btn"      data-type="face"          style="width:56px;height:56px;left:672px;top:172px;"><span class="label">Y</span><div class="resize-handle"></div></div>
-    <div class="btn joystick" data-type="joystick"  style="width:150px;height:150px;left:110px;top:200px;"><div class="joystick-inner"></div><span class="label">Left stick</span><div class="resize-handle"></div></div>
-    <div class="btn joystick" data-type="joystick"  style="width:150px;height:150px;left:450px;top:200px;"><div class="joystick-inner"></div><span class="label">Right stick</span><div class="resize-handle"></div></div>
+    <div class="btn pill" data-type="pill"          style="width:90px;height:28px;left:300px;top:14px;"><span class="label">⟳ Gyro Off</span></div>
+    <div class="btn pill" data-type="pill"          style="width:122px;height:28px;left:406px;top:14px;"><span class="label">▶ Play on Phone</span></div>
+    <div class="btn pill" data-type="pill"          style="width:82px;height:32px;left:340px;top:62px;"><span class="label">Start</span></div>
+    <div class="btn pill" data-type="pill"          style="width:82px;height:32px;left:340px;top:106px;"><span class="label">Select</span></div>
+    <div class="btn rect" data-type="bumper"        style="width:52px;height:36px;left:28px;top:220px;"><span class="label">LT</span></div>
+    <div class="btn rect" data-type="bumper"        style="width:52px;height:36px;left:28px;top:268px;"><span class="label">LB</span></div>
+    <div class="btn rect" data-type="bumper"        style="width:52px;height:36px;left:780px;top:220px;"><span class="label">RT</span></div>
+    <div class="btn rect" data-type="bumper"        style="width:52px;height:36px;left:780px;top:268px;"><span class="label">RB</span></div>
+    <div class="btn"      data-type="face"          style="width:56px;height:56px;left:672px;top:60px;"><span class="label">X</span></div>
+    <div class="btn"      data-type="face"          style="width:56px;height:56px;left:610px;top:116px;"><span class="label">A</span></div>
+    <div class="btn"      data-type="face"          style="width:56px;height:56px;left:734px;top:116px;"><span class="label">B</span></div>
+    <div class="btn"      data-type="face"          style="width:56px;height:56px;left:672px;top:172px;"><span class="label">Y</span></div>
+    <div class="btn joystick" data-type="joystick"  style="width:150px;height:150px;left:110px;top:200px;"><div class="joystick-inner"></div><span class="label">Left stick</span></div>
+    <div class="btn joystick" data-type="joystick"  style="width:150px;height:150px;left:450px;top:200px;"><div class="joystick-inner"></div><span class="label">Right stick</span></div>
 
     <div class="edit-panel" id="editPanel">
       <label>Label</label>
       <input type="text" class="label-input" id="labelInput" maxlength="24" placeholder="Name…">
       <div class="sep"></div>
       <label>W</label>
-      <input type="range" id="wSlider" min="20" max="240" step="1">
+      <input type="range" id="wSlider" min="20" max="300" step="1">
       <span class="val" id="wVal">—</span>
       <div class="sep"></div>
       <label>H</label>
-      <input type="range" id="hSlider" min="20" max="240" step="1">
+      <input type="range" id="hSlider" min="20" max="300" step="1">
       <span class="val" id="hVal">—</span>
     </div>
   </div>
@@ -170,10 +184,21 @@
   const hVal        = document.getElementById('hVal');
 
   let selectedEl  = null;
-  let uidCounter  = 200;
   const defaultState = [];
 
+  const HANDLES = [
+    { cls: 'handle corner h-nw', dir: 'nw' },
+    { cls: 'handle corner h-ne', dir: 'ne' },
+    { cls: 'handle corner h-sw', dir: 'sw' },
+    { cls: 'handle corner h-se', dir: 'se' },
+    { cls: 'handle edge h h-n', dir: 'n' },
+    { cls: 'handle edge h h-s', dir: 's' },
+    { cls: 'handle edge v h-w', dir: 'w' },
+    { cls: 'handle edge v h-e', dir: 'e' }
+  ];
+
   canvas.querySelectorAll('.btn').forEach(el => {
+    addHandles(el);
     defaultState.push(captureEl(el));
     initEl(el);
   });
@@ -182,25 +207,33 @@
     if (!e.target.closest('.btn') && !e.target.closest('#editPanel')) deselect();
   });
 
+  function addHandles(el) {
+    HANDLES.forEach(h => {
+      const handle = document.createElement('div');
+      handle.className = h.cls;
+      handle.dataset.dir = h.dir;
+      el.appendChild(handle);
+    });
+  }
+
   function captureEl(el) {
     return {
       type: el.dataset.type,
       left: parseFloat(el.style.left), top: parseFloat(el.style.top),
       width: parseFloat(el.style.width), height: parseFloat(el.style.height),
-      className: el.className.replace(/\b(selected|dragging)\b/g,'').trim(),
       label: el.querySelector('.label')?.textContent || ''
     };
   }
 
   function initEl(el) {
     el.addEventListener('mousedown', function(e) {
-      if (e.target.classList.contains('resize-handle')) return;
+      if (e.target.classList.contains('handle')) return;
       e.preventDefault(); e.stopPropagation();
       selectEl(el);
       startDrag(el, e.clientX, e.clientY);
     });
     el.addEventListener('touchstart', function(e) {
-      if (e.target.classList.contains('resize-handle')) return;
+      if (e.target.classList.contains('handle')) return;
       e.preventDefault(); e.stopPropagation();
       selectEl(el);
       startDrag(el, e.touches[0].clientX, e.touches[0].clientY, true);
@@ -213,16 +246,18 @@
       labelInput.select();
     });
 
-    const handle = el.querySelector('.resize-handle');
-    if (!handle) return;
-    handle.addEventListener('mousedown', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      startResize(el, e.clientX, e.clientY);
+    el.querySelectorAll('.handle').forEach(handle => {
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        selectEl(el);
+        startResize(el, e.clientX, e.clientY, handle.dataset.dir);
+      });
+      handle.addEventListener('touchstart', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        selectEl(el);
+        startResize(el, e.touches[0].clientX, e.touches[0].clientY, handle.dataset.dir, true);
+      }, { passive: false });
     });
-    handle.addEventListener('touchstart', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      startResize(el, e.touches[0].clientX, e.touches[0].clientY, true);
-    }, { passive: false });
   }
 
   function selectEl(el) {
@@ -279,10 +314,8 @@
       const dy = cy - startCY;
       const w = parseFloat(el.style.width);
       const h = parseFloat(el.style.height);
-      const maxLeft = canvas.offsetWidth  - w;
-      const maxTop  = canvas.offsetHeight - h;
-      el.style.left = Math.max(0, Math.min(maxLeft, startLeft + dx)) + 'px';
-      el.style.top  = Math.max(0, Math.min(maxTop,  startTop  + dy)) + 'px';
+      el.style.left = Math.max(0, Math.min(canvas.offsetWidth  - w, startLeft + dx)) + 'px';
+      el.style.top  = Math.max(0, Math.min(canvas.offsetHeight - h, startTop  + dy)) + 'px';
     }
 
     function onMove(e)  { move(e.clientX, e.clientY); }
@@ -298,13 +331,49 @@
     else         { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', end); }
   }
 
-  function startResize(el, startCX, startCY, isTouch) {
-    const startW = parseFloat(el.style.width);
-    const startH = parseFloat(el.style.height);
+  function startResize(el, startCX, startCY, dir, isTouch) {
+    const startLeft = parseFloat(el.style.left);
+    const startTop  = parseFloat(el.style.top);
+    const startW    = parseFloat(el.style.width);
+    const startH    = parseFloat(el.style.height);
+    const MIN = 20;
 
     function move(cx, cy) {
-      const newW = Math.max(20, startW + (cx - startCX));
-      const newH = Math.max(20, startH + (cy - startCY));
+      const dx = cx - startCX;
+      const dy = cy - startCY;
+      let newL = startLeft, newT = startTop, newW = startW, newH = startH;
+
+      if (dir.includes('e')) newW = Math.max(MIN, startW + dx);
+      if (dir.includes('s')) newH = Math.max(MIN, startH + dy);
+      if (dir.includes('w')) {
+        const wProposed = startW - dx;
+        if (wProposed >= MIN) {
+          newW = wProposed;
+          newL = startLeft + dx;
+        } else {
+          newW = MIN;
+          newL = startLeft + (startW - MIN);
+        }
+      }
+      if (dir.includes('n')) {
+        const hProposed = startH - dy;
+        if (hProposed >= MIN) {
+          newH = hProposed;
+          newT = startTop + dy;
+        } else {
+          newH = MIN;
+          newT = startTop + (startH - MIN);
+        }
+      }
+
+      // Clamp to canvas
+      newL = Math.max(0, Math.min(canvas.offsetWidth  - newW, newL));
+      newT = Math.max(0, Math.min(canvas.offsetHeight - newH, newT));
+      newW = Math.min(newW, canvas.offsetWidth  - newL);
+      newH = Math.min(newH, canvas.offsetHeight - newT);
+
+      el.style.left = newL + 'px';
+      el.style.top  = newT + 'px';
       el.style.width  = newW + 'px';
       el.style.height = newH + 'px';
       if (selectedEl === el) syncPanel();
@@ -322,43 +391,41 @@
     else         { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', end); }
   }
 
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
   function makeEl(type, left, top, width, height, label) {
     const el = document.createElement('div');
     el.dataset.type = type;
+    let inner = '';
     if (type === 'joystick') {
       el.className = 'btn joystick';
-      el.innerHTML = `<div class="joystick-inner"></div><span class="label">${escapeHtml(label)}</span><div class="resize-handle"></div>`;
+      inner = `<div class="joystick-inner"></div><span class="label">${escapeHtml(label)}</span>`;
     } else if (type === 'bumper') {
       el.className = 'btn rect';
-      el.innerHTML = `<span class="label">${escapeHtml(label)}</span><div class="resize-handle"></div>`;
+      inner = `<span class="label">${escapeHtml(label)}</span>`;
     } else if (type === 'pill') {
       el.className = 'btn pill';
-      el.innerHTML = `<span class="label">${escapeHtml(label)}</span><div class="resize-handle"></div>`;
+      inner = `<span class="label">${escapeHtml(label)}</span>`;
     } else {
       el.className = 'btn';
-      el.innerHTML = `<span class="label">${escapeHtml(label)}</span><div class="resize-handle"></div>`;
+      inner = `<span class="label">${escapeHtml(label)}</span>`;
     }
+    el.innerHTML = inner;
     el.style.cssText = `width:${width}px;height:${height}px;left:${left}px;top:${top}px;`;
+    addHandles(el);
     return el;
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   window.addButton = function(type) {
     const cx = canvas.offsetWidth  / 2;
     const cy = canvas.offsetHeight / 2;
     let el;
-    if (type === 'joystick') {
-      el = makeEl('joystick', cx-70, cy-70, 140, 140, 'Stick');
-    } else if (type === 'face') {
-      el = makeEl('face', cx-26, cy-26, 52, 52, 'Btn');
-    } else if (type === 'bumper') {
-      el = makeEl('bumper', cx-26, cy-18, 52, 36, 'BTN');
-    } else {
-      el = makeEl('pill', cx-40, cy-15, 80, 30, 'Button');
-    }
+    if (type === 'joystick') el = makeEl('joystick', cx-70, cy-70, 140, 140, 'Stick');
+    else if (type === 'face') el = makeEl('face', cx-26, cy-26, 52, 52, 'Btn');
+    else if (type === 'bumper') el = makeEl('bumper', cx-26, cy-18, 52, 36, 'BTN');
+    else el = makeEl('pill', cx-40, cy-15, 80, 30, 'Button');
     canvas.appendChild(el);
     initEl(el);
     selectEl(el);
