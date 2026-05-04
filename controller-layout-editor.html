@@ -8,11 +8,11 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #0d0d14; --surface: #13131f; --canvas-bg: #1a1a2e;
+    --bg: #000000; --surface: #0a0a0a; --canvas-bg: #050505;
     --border: rgba(255,255,255,0.08); --border-hover: rgba(255,255,255,0.18);
-    --accent: #7f77dd; --accent-dim: rgba(127,119,221,0.2);
-    --text: #e8e8f0; --text-dim: rgba(232,232,240,0.45);
-    --green: #4ade80; --panel-bg: rgba(13,13,20,0.97);
+    --accent: #ff7a1a; --accent-dim: rgba(255,122,26,0.2);
+    --text: #f4f4f4; --text-dim: rgba(244,244,244,0.45);
+    --green: #4ade80; --panel-bg: rgba(0,0,0,0.97);
   }
   body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 40px; }
   header { width: 100%; max-width: 900px; display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
@@ -48,18 +48,21 @@
     flex-shrink: 0;
   }
 
-  .btn { position: absolute; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.88); background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.35); border-radius: 50%; cursor: grab; box-sizing: border-box; touch-action: none; overflow: visible; }
-  .btn:hover { border-color: rgba(255,255,255,0.55); }
+  .btn { position: absolute; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; color: #ffb47a; background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,122,26,0.55); border-radius: 50%; cursor: grab; box-sizing: border-box; touch-action: none; overflow: visible; }
+  .btn:hover { border-color: rgba(255,122,26,0.85); }
+  .btn.pressed { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.pressed .joystick-inner { background: #fff; border-color: rgba(255,255,255,0.9); }
+  .btn.pressed.joystick .label { color: rgba(255,255,255,0.85); }
   .btn.pill { border-radius: 100px; }
   .btn.rect { border-radius: 10px; }
   .btn.selected { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 50; }
   .btn.dragging { cursor: grabbing; z-index: 100; }
   .btn .label { pointer-events: none; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .joystick-inner { width: 38%; height: 38%; border-radius: 50%; background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.35); pointer-events: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-  .btn.joystick .label { position: absolute; bottom: 6px; left: 0; right: 0; font-size: 10px; text-align: center; color: rgba(255,255,255,0.6); pointer-events: none; }
+  .joystick-inner { width: 38%; height: 38%; border-radius: 50%; background: rgba(255,122,26,0.18); border: 1.5px solid rgba(255,122,26,0.55); pointer-events: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+  .btn.joystick .label { position: absolute; bottom: 6px; left: 0; right: 0; font-size: 10px; text-align: center; color: rgba(255,180,122,0.75); pointer-events: none; }
 
   /* Resize handles - 8 points around the element */
-  .handle { position: absolute; background: var(--accent); border: 2px solid #0d0d14; z-index: 101; display: none; }
+  .handle { position: absolute; background: var(--accent); border: 2px solid #000000; z-index: 101; display: none; }
   .btn.selected .handle { display: block; }
   .handle.corner { width: 12px; height: 12px; border-radius: 50%; }
   .handle.edge { background: var(--accent); border-radius: 3px; }
@@ -75,7 +78,12 @@
   .h-w  { left: -4px;  top: 50%; transform: translateY(-50%); cursor: w-resize; }
   .h-e  { right:-4px;  top: 50%; transform: translateY(-50%); cursor: e-resize; }
 
-  .marquee { position: absolute; border: 1px dashed var(--accent); background: rgba(127,119,221,0.10); pointer-events: none; z-index: 150; }
+  .marquee { position: absolute; border: 1px dashed var(--accent); background: rgba(255,122,26,0.10); pointer-events: none; z-index: 150; }
+  .guide { position: absolute; pointer-events: none; z-index: 5; }
+  .guide.v { width: 0; border-left: 1px dashed currentColor; top: 0; bottom: 0; }
+  .guide.h { height: 0; border-top: 1px dashed currentColor; left: 0; right: 0; }
+  .guide.ok { color: var(--green); }
+  .guide.bad { color: #ef4444; }
   .canvas.multi .btn.selected .handle { display: none; }
   .status-dot { position: absolute; top: 14px; right: 18px; display: none; align-items: center; gap: 5px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--green); pointer-events: none; letter-spacing: 0.05em; }
   .status-dot.visible { display: flex; }
@@ -103,6 +111,14 @@
   .saved-item .del-btn { background: rgba(239,68,68,0.1); color: rgba(239,68,68,0.6); padding: 2px 6px; }
   .saved-item .del-btn:hover { background: rgba(239,68,68,0.2); color: #ef4444; }
   .empty-state { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); padding: 10px 0; }
+
+  .align-bar { width: 100%; max-width: 900px; font-family: 'DM Mono', monospace; font-size: 11px; margin-top: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); display: none; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .align-bar.visible { display: flex; }
+  .align-bar .check { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); }
+  .align-bar .check.ok { color: var(--green); }
+  .align-bar .check.bad { color: #ef4444; }
+  .align-bar .check.missing { color: var(--text-dim); opacity: 0.6; }
+  .align-bar .label { color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; }
 </style>
 </head>
 <body>
@@ -125,6 +141,7 @@
     <button class="danger" onclick="deleteSelected()">Delete selected</button>
     <button onclick="resetLayout()">Reset</button>
     <button class="toggle" id="connectedToggle" onclick="toggleConnected()">Connected: Off</button>
+    <button class="toggle" id="alignToggle" onclick="toggleAlignCheck()">Check alignment: Off</button>
   </div>
   <div class="toolbar-divider"></div>
   <div class="toolbar-group">
@@ -140,6 +157,7 @@
   <span>Drag any handle to resize</span>
   <span>Drag empty space to box-select</span>
   <span>Double-click to rename</span>
+  <span>Alt/Option-click to toggle pressed</span>
   <span>Delete key to remove</span>
 </div>
 
@@ -166,6 +184,8 @@
       <label>Label</label>
       <input type="text" class="label-input" id="labelInput" maxlength="24" placeholder="Name…">
       <div class="sep"></div>
+      <button class="toggle" id="pressedToggle" type="button">Pressed: Off</button>
+      <div class="sep"></div>
       <label>W</label>
       <input type="range" id="wSlider" min="20" max="300" step="1">
       <input type="number" class="dim-input" id="wVal" min="20" max="860" step="1">
@@ -176,6 +196,8 @@
     </div>
   </div>
 </div>
+
+<div class="align-bar" id="alignBar"></div>
 
 <div class="saved-panel">
   <div class="saved-title">Saved layouts</div>
@@ -246,6 +268,7 @@
     el.addEventListener('mousedown', function(e) {
       if (e.target.classList.contains('handle')) return;
       e.preventDefault(); e.stopPropagation();
+      if (e.altKey) { togglePressed([el]); selectEl(el); return; }
       if (!selectedEls.includes(el)) selectEl(el);
       startDrag(el, e.clientX, e.clientY);
     });
@@ -290,6 +313,7 @@
       selectedEl = null;
       editPanel.classList.remove('visible');
     }
+    syncPressedToggle();
   }
 
   function selectEl(el) { setSelection([el]); }
@@ -338,6 +362,24 @@
     if (isTouch) { document.addEventListener('touchmove', onTouch, { passive: false }); document.addEventListener('touchend', end); }
     else         { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', end); }
   }
+
+  const pressedToggle = document.getElementById('pressedToggle');
+  function togglePressed(els) {
+    const allOn = els.length > 0 && els.every(el => el.classList.contains('pressed'));
+    els.forEach(el => el.classList.toggle('pressed', !allOn));
+    syncPressedToggle();
+  }
+  function syncPressedToggle() {
+    if (selectedEls.length === 0) { pressedToggle.classList.remove('on'); pressedToggle.textContent = 'Pressed: Off'; return; }
+    const allOn = selectedEls.every(el => el.classList.contains('pressed'));
+    pressedToggle.classList.toggle('on', allOn);
+    pressedToggle.textContent = 'Pressed: ' + (allOn ? 'On' : 'Off');
+  }
+  pressedToggle.addEventListener('click', function(e) {
+    e.preventDefault();
+    if (selectedEls.length === 0) return;
+    togglePressed(selectedEls);
+  });
 
   function syncPanel() {
     if (!selectedEl) return;
@@ -555,6 +597,138 @@
     labelInput.focus();
     labelInput.select();
   };
+
+  const alignBar = document.getElementById('alignBar');
+  const alignToggle = document.getElementById('alignToggle');
+  let alignOn = false;
+
+  function findByLabel(name) {
+    const target = name.toLowerCase();
+    return Array.from(canvas.querySelectorAll('.btn')).find(el => {
+      const l = el.querySelector('.label');
+      return l && l.textContent.trim().toLowerCase() === target;
+    });
+  }
+
+  function approxEq(a, b, tol) { return Math.abs(a - b) <= (tol ?? 0.5); }
+
+  function checkRow(label, ok, missing, detail) {
+    const cls = missing ? 'missing' : (ok ? 'ok' : 'bad');
+    const mark = missing ? '–' : (ok ? '✓' : '✕');
+    const txt = detail ? ` (${detail})` : '';
+    return `<span class="check ${cls}">${mark} ${label}${txt}</span>`;
+  }
+
+  function clearGuides() {
+    canvas.querySelectorAll('.guide').forEach(g => g.remove());
+  }
+  function addGuide(orientation, pos, ok) {
+    const g = document.createElement('div');
+    g.className = `guide ${orientation} ${ok ? 'ok' : 'bad'}`;
+    if (orientation === 'v') g.style.left = pos + 'px';
+    else g.style.top = pos + 'px';
+    canvas.appendChild(g);
+  }
+
+  let updatingAlign = false;
+  function updateAlignCheck() {
+    if (updatingAlign) return;
+    updatingAlign = true;
+    try {
+      _updateAlignCheck();
+    } finally {
+      updatingAlign = false;
+    }
+  }
+  function _updateAlignCheck() {
+    clearGuides();
+    if (!alignOn) return;
+    const lt = findByLabel('LT'), lb = findByLabel('LB'), rt = findByLabel('RT'), rb = findByLabel('RB');
+    const dim = el => ({
+      l: parseFloat(el.style.left), t: parseFloat(el.style.top),
+      w: parseFloat(el.style.width), h: parseFloat(el.style.height)
+    });
+    const rows = [];
+    rows.push(`<span class="label">Alignment</span>`);
+
+    if (lt && lb) {
+      const a = dim(lt), b = dim(lb);
+      const leftOK = approxEq(a.l, b.l);
+      const sizeOK = approxEq(a.w, b.w) && approxEq(a.h, b.h);
+      rows.push(checkRow('LT/LB left edge', leftOK, false, leftOK ? '' : `Δ ${Math.round(Math.abs(a.l-b.l))}px`));
+      rows.push(checkRow('LT/LB size',      sizeOK, false, sizeOK ? '' : `Δ ${Math.round(Math.abs(a.w-b.w))}×${Math.round(Math.abs(a.h-b.h))}`));
+      if (leftOK) addGuide('v', a.l, true);
+      else { addGuide('v', a.l, false); addGuide('v', b.l, false); }
+    } else {
+      rows.push(checkRow('LT/LB', false, true, 'missing'));
+    }
+
+    if (rt && rb) {
+      const a = dim(rt), b = dim(rb);
+      const aR = a.l + a.w, bR = b.l + b.w;
+      const rightOK = approxEq(aR, bR);
+      const sizeOK  = approxEq(a.w, b.w) && approxEq(a.h, b.h);
+      rows.push(checkRow('RT/RB right edge', rightOK, false, rightOK ? '' : `Δ ${Math.round(Math.abs(aR-bR))}px`));
+      rows.push(checkRow('RT/RB size',       sizeOK,  false, sizeOK  ? '' : `Δ ${Math.round(Math.abs(a.w-b.w))}×${Math.round(Math.abs(a.h-b.h))}`));
+      if (rightOK) addGuide('v', aR, true);
+      else { addGuide('v', aR, false); addGuide('v', bR, false); }
+    } else {
+      rows.push(checkRow('RT/RB', false, true, 'missing'));
+    }
+
+    if (lt && rt) {
+      const a = dim(lt), b = dim(rt);
+      const ok = approxEq(a.t, b.t);
+      rows.push(checkRow('LT/RT top edge', ok, false, ok ? '' : `Δ ${Math.round(Math.abs(a.t-b.t))}px`));
+      if (ok) addGuide('h', a.t, true);
+      else { addGuide('h', a.t, false); addGuide('h', b.t, false); }
+    }
+    if (lb && rb) {
+      const a = dim(lb), b = dim(rb);
+      const ok = approxEq(a.t, b.t);
+      rows.push(checkRow('LB/RB top edge', ok, false, ok ? '' : `Δ ${Math.round(Math.abs(a.t-b.t))}px`));
+      if (ok) addGuide('h', a.t, true);
+      else { addGuide('h', a.t, false); addGuide('h', b.t, false); }
+    }
+
+    const ls = findByLabel('Left stick'), rs = findByLabel('Right stick');
+    if (ls && rs) {
+      const a = dim(ls), b = dim(rs);
+      const topOK = approxEq(a.t, b.t);
+      const sizeOK = approxEq(a.w, b.w) && approxEq(a.h, b.h);
+      const cyA = a.t + a.h/2, cyB = b.t + b.h/2;
+      const centerOK = approxEq(cyA, cyB);
+      rows.push(checkRow('Sticks top edge', topOK, false, topOK ? '' : `Δ ${Math.round(Math.abs(a.t-b.t))}px`));
+      rows.push(checkRow('Sticks size', sizeOK, false, sizeOK ? '' : `Δ ${Math.round(Math.abs(a.w-b.w))}×${Math.round(Math.abs(a.h-b.h))}`));
+      if (topOK) addGuide('h', a.t, true);
+      else { addGuide('h', a.t, false); addGuide('h', b.t, false); }
+      if (centerOK) addGuide('h', cyA, true);
+      else { addGuide('h', cyA, false); addGuide('h', cyB, false); }
+    } else if (ls || rs) {
+      rows.push(checkRow('Sticks', false, true, 'need both'));
+    }
+
+    alignBar.innerHTML = rows.join('');
+  }
+
+  window.toggleAlignCheck = function() {
+    alignOn = !alignOn;
+    alignBar.classList.toggle('visible', alignOn);
+    alignToggle.classList.toggle('on', alignOn);
+    alignToggle.textContent = 'Check alignment: ' + (alignOn ? 'On' : 'Off');
+    updateAlignCheck();
+  };
+
+  const styleObserver = new MutationObserver((muts) => {
+    if (updatingAlign) return;
+    const relevant = muts.some(m => {
+      if (m.type === 'attributes') return m.target.classList && m.target.classList.contains('btn');
+      return Array.from(m.addedNodes).some(n => n.classList && n.classList.contains('btn')) ||
+             Array.from(m.removedNodes).some(n => n.classList && n.classList.contains('btn'));
+    });
+    if (relevant) updateAlignCheck();
+  });
+  styleObserver.observe(canvas, { attributes: true, attributeFilter: ['style'], subtree: true, childList: true });
 
   window.toggleConnected = function() {
     const dot = document.getElementById('statusDot');
