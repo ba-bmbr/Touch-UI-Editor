@@ -75,15 +75,20 @@
   .h-w  { left: -4px;  top: 50%; transform: translateY(-50%); cursor: w-resize; }
   .h-e  { right:-4px;  top: 50%; transform: translateY(-50%); cursor: e-resize; }
 
-  .status-dot { position: absolute; top: 14px; right: 18px; display: flex; align-items: center; gap: 5px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--green); pointer-events: none; letter-spacing: 0.05em; }
+  .status-dot { position: absolute; top: 14px; right: 18px; display: none; align-items: center; gap: 5px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--green); pointer-events: none; letter-spacing: 0.05em; }
+  .status-dot.visible { display: flex; }
   .status-dot::before { content: ''; display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+  button.toggle.on { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
 
   .edit-panel { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: var(--panel-bg); border: 1px solid var(--border-hover); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.15s; white-space: nowrap; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 32px); }
   .edit-panel.visible { opacity: 1; pointer-events: all; }
   .edit-panel label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em; }
   .edit-panel input[type=range] { width: 70px; accent-color: var(--accent); cursor: pointer; padding: 0; border: none; background: none; }
   .edit-panel input[type=text].label-input { width: 110px; font-size: 11px; padding: 5px 8px; border-radius: 6px; }
-  .edit-panel .val { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text); min-width: 26px; }
+  .edit-panel input[type=number].dim-input { width: 48px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); outline: none; text-align: center; -moz-appearance: textfield; }
+  .edit-panel input[type=number].dim-input::-webkit-outer-spin-button,
+  .edit-panel input[type=number].dim-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .edit-panel input[type=number].dim-input:focus { border-color: var(--accent); }
   .edit-panel .sep { width: 1px; height: 16px; background: var(--border); }
 
   .saved-panel { width: 100%; max-width: 900px; margin-top: 16px; }
@@ -117,6 +122,7 @@
   <div class="toolbar-group">
     <button class="danger" onclick="deleteSelected()">Delete selected</button>
     <button onclick="resetLayout()">Reset</button>
+    <button class="toggle" id="connectedToggle" onclick="toggleConnected()">Connected: Off</button>
   </div>
   <div class="toolbar-divider"></div>
   <div class="toolbar-group">
@@ -136,7 +142,7 @@
 
 <div class="canvas-outer">
   <div class="canvas" id="canvas">
-    <div class="status-dot">Connected</div>
+    <div class="status-dot" id="statusDot">Connected</div>
 
     <div class="btn pill" data-type="pill"          style="width:90px;height:28px;left:300px;top:14px;"><span class="label">⟳ Gyro Off</span></div>
     <div class="btn pill" data-type="pill"          style="width:122px;height:28px;left:406px;top:14px;"><span class="label">▶ Play on Phone</span></div>
@@ -159,11 +165,11 @@
       <div class="sep"></div>
       <label>W</label>
       <input type="range" id="wSlider" min="20" max="300" step="1">
-      <span class="val" id="wVal">—</span>
+      <input type="number" class="dim-input" id="wVal" min="20" max="860" step="1">
       <div class="sep"></div>
       <label>H</label>
       <input type="range" id="hSlider" min="20" max="300" step="1">
-      <span class="val" id="hVal">—</span>
+      <input type="number" class="dim-input" id="hVal" min="20" max="420" step="1">
     </div>
   </div>
 </div>
@@ -278,8 +284,8 @@
     if (!selectedEl) return;
     const w = Math.round(parseFloat(selectedEl.style.width));
     const h = Math.round(parseFloat(selectedEl.style.height));
-    wSlider.value = w; wVal.textContent = w;
-    hSlider.value = h; hVal.textContent = h;
+    wSlider.value = w; wVal.value = w;
+    hSlider.value = h; hVal.value = h;
     const labelEl = selectedEl.querySelector('.label');
     labelInput.value = labelEl ? labelEl.textContent : '';
   }
@@ -293,16 +299,62 @@
     if (e.key === 'Enter') { e.preventDefault(); labelInput.blur(); }
   });
 
-  wSlider.addEventListener('input', function() {
+  const MIN_DIM = 20;
+
+  function maxDim(axis) {
+    if (!selectedEl) return 0;
+    const isW = axis === 'w';
+    const maxCanvas = isW ? canvas.offsetWidth : canvas.offsetHeight;
+    const pos = parseFloat(isW ? selectedEl.style.left : selectedEl.style.top);
+    return maxCanvas - pos;
+  }
+
+  // Live apply during typing: don't overwrite the field, just resize if value is valid.
+  function liveApply(axis, raw) {
     if (!selectedEl) return;
-    selectedEl.style.width = wSlider.value + 'px';
-    wVal.textContent = wSlider.value;
-  });
-  hSlider.addEventListener('input', function() {
+    const v = parseInt(raw, 10);
+    if (isNaN(v) || v < MIN_DIM) return;
+    const clamped = Math.min(maxDim(axis), v);
+    const isW = axis === 'w';
+    selectedEl.style[isW ? 'width' : 'height'] = clamped + 'px';
+    const slider = isW ? wSlider : hSlider;
+    if (clamped <= parseInt(slider.max, 10)) slider.value = clamped;
+  }
+
+  // Commit on blur/Enter: clamp and write back to the field.
+  function commitDim(axis) {
     if (!selectedEl) return;
-    selectedEl.style.height = hSlider.value + 'px';
-    hVal.textContent = hSlider.value;
-  });
+    const isW = axis === 'w';
+    const input  = isW ? wVal : hVal;
+    const slider = isW ? wSlider : hSlider;
+    let v = parseInt(input.value, 10);
+    if (isNaN(v)) v = Math.round(parseFloat(selectedEl.style[isW ? 'width' : 'height']));
+    v = Math.max(MIN_DIM, Math.min(maxDim(axis), v));
+    selectedEl.style[isW ? 'width' : 'height'] = v + 'px';
+    input.value = v;
+    if (v <= parseInt(slider.max, 10)) slider.value = v;
+  }
+
+  function sliderApply(axis) {
+    if (!selectedEl) return;
+    const isW = axis === 'w';
+    const slider = isW ? wSlider : hSlider;
+    const input  = isW ? wVal : hVal;
+    const v = Math.min(maxDim(axis), parseInt(slider.value, 10));
+    selectedEl.style[isW ? 'width' : 'height'] = v + 'px';
+    input.value = v;
+  }
+
+  wSlider.addEventListener('input', function() { sliderApply('w'); });
+  hSlider.addEventListener('input', function() { sliderApply('h'); });
+
+  wVal.addEventListener('input', function() { liveApply('w', wVal.value); });
+  hVal.addEventListener('input', function() { liveApply('h', hVal.value); });
+  wVal.addEventListener('blur',  function() { commitDim('w'); });
+  hVal.addEventListener('blur',  function() { commitDim('h'); });
+  [wVal, hVal].forEach(inp => inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+  }));
 
   function startDrag(el, startCX, startCY, isTouch) {
     const startLeft = parseFloat(el.style.left);
@@ -431,6 +483,15 @@
     selectEl(el);
     labelInput.focus();
     labelInput.select();
+  };
+
+  window.toggleConnected = function() {
+    const dot = document.getElementById('statusDot');
+    const btn = document.getElementById('connectedToggle');
+    const on = !dot.classList.contains('visible');
+    dot.classList.toggle('visible', on);
+    btn.classList.toggle('on', on);
+    btn.textContent = 'Connected: ' + (on ? 'On' : 'Off');
   };
 
   window.deleteSelected = function() {
