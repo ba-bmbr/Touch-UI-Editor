@@ -75,6 +75,8 @@
   .h-w  { left: -4px;  top: 50%; transform: translateY(-50%); cursor: w-resize; }
   .h-e  { right:-4px;  top: 50%; transform: translateY(-50%); cursor: e-resize; }
 
+  .marquee { position: absolute; border: 1px dashed var(--accent); background: rgba(127,119,221,0.10); pointer-events: none; z-index: 150; }
+  .canvas.multi .btn.selected .handle { display: none; }
   .status-dot { position: absolute; top: 14px; right: 18px; display: none; align-items: center; gap: 5px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--green); pointer-events: none; letter-spacing: 0.05em; }
   .status-dot.visible { display: flex; }
   .status-dot::before { content: ''; display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
@@ -136,6 +138,7 @@
   <span>Click to select</span>
   <span>Drag center to move</span>
   <span>Drag any handle to resize</span>
+  <span>Drag empty space to box-select</span>
   <span>Double-click to rename</span>
   <span>Delete key to remove</span>
 </div>
@@ -190,6 +193,7 @@
   const hVal        = document.getElementById('hVal');
 
   let selectedEl  = null;
+  let selectedEls = [];
   const defaultState = [];
 
   const HANDLES = [
@@ -210,8 +214,15 @@
   });
 
   canvas.addEventListener('mousedown', function(e) {
-    if (!e.target.closest('.btn') && !e.target.closest('#editPanel')) deselect();
+    if (e.target.closest('.btn') || e.target.closest('#editPanel') || e.target.classList.contains('handle')) return;
+    e.preventDefault();
+    startMarquee(e.clientX, e.clientY, false);
   });
+  canvas.addEventListener('touchstart', function(e) {
+    if (e.target.closest('.btn') || e.target.closest('#editPanel') || e.target.classList.contains('handle')) return;
+    e.preventDefault();
+    startMarquee(e.touches[0].clientX, e.touches[0].clientY, true);
+  }, { passive: false });
 
   function addHandles(el) {
     HANDLES.forEach(h => {
@@ -235,13 +246,13 @@
     el.addEventListener('mousedown', function(e) {
       if (e.target.classList.contains('handle')) return;
       e.preventDefault(); e.stopPropagation();
-      selectEl(el);
+      if (!selectedEls.includes(el)) selectEl(el);
       startDrag(el, e.clientX, e.clientY);
     });
     el.addEventListener('touchstart', function(e) {
       if (e.target.classList.contains('handle')) return;
       e.preventDefault(); e.stopPropagation();
-      selectEl(el);
+      if (!selectedEls.includes(el)) selectEl(el);
       startDrag(el, e.touches[0].clientX, e.touches[0].clientY, true);
     }, { passive: false });
 
@@ -266,18 +277,66 @@
     });
   }
 
-  function selectEl(el) {
-    if (selectedEl && selectedEl !== el) selectedEl.classList.remove('selected');
-    selectedEl = el;
-    el.classList.add('selected');
-    editPanel.classList.add('visible');
-    syncPanel();
+  function setSelection(els) {
+    selectedEls.forEach(e => e.classList.remove('selected'));
+    selectedEls = els.slice();
+    selectedEls.forEach(e => e.classList.add('selected'));
+    canvas.classList.toggle('multi', selectedEls.length > 1);
+    if (selectedEls.length === 1) {
+      selectedEl = selectedEls[0];
+      editPanel.classList.add('visible');
+      syncPanel();
+    } else {
+      selectedEl = null;
+      editPanel.classList.remove('visible');
+    }
   }
 
-  function deselect() {
-    if (selectedEl) selectedEl.classList.remove('selected');
-    selectedEl = null;
-    editPanel.classList.remove('visible');
+  function selectEl(el) { setSelection([el]); }
+  function deselect()   { setSelection([]); }
+
+  function startMarquee(startCX, startCY, isTouch) {
+    const cRect = canvas.getBoundingClientRect();
+    const x0 = startCX - cRect.left;
+    const y0 = startCY - cRect.top;
+    const marquee = document.createElement('div');
+    marquee.className = 'marquee';
+    canvas.appendChild(marquee);
+    let moved = false;
+    let bounds = { left: x0, top: y0, right: x0, bottom: y0 };
+
+    function update(cx, cy) {
+      const x = cx - cRect.left, y = cy - cRect.top;
+      const left = Math.min(x0, x), top = Math.min(y0, y);
+      const w = Math.abs(x - x0), h = Math.abs(y - y0);
+      marquee.style.left = left + 'px';
+      marquee.style.top = top + 'px';
+      marquee.style.width = w + 'px';
+      marquee.style.height = h + 'px';
+      if (w > 2 || h > 2) moved = true;
+      bounds = { left, top, right: left + w, bottom: top + h };
+    }
+    function finish() {
+      marquee.remove();
+      if (!moved) { deselect(); return; }
+      const hits = Array.from(canvas.querySelectorAll('.btn')).filter(el => {
+        const l = el.offsetLeft, t = el.offsetTop;
+        const r = l + el.offsetWidth, b = t + el.offsetHeight;
+        return l < bounds.right && r > bounds.left && t < bounds.bottom && b > bounds.top;
+      });
+      setSelection(hits);
+    }
+    function onMove(e)  { update(e.clientX, e.clientY); }
+    function onTouch(e) { e.preventDefault(); update(e.touches[0].clientX, e.touches[0].clientY); }
+    function end() {
+      finish();
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', end);
+      document.removeEventListener('touchmove', onTouch);
+      document.removeEventListener('touchend', end);
+    }
+    if (isTouch) { document.addEventListener('touchmove', onTouch, { passive: false }); document.addEventListener('touchend', end); }
+    else         { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', end); }
   }
 
   function syncPanel() {
@@ -356,24 +415,36 @@
     if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
   }));
 
-  function startDrag(el, startCX, startCY, isTouch) {
-    const startLeft = parseFloat(el.style.left);
-    const startTop  = parseFloat(el.style.top);
-    el.classList.add('dragging');
+  function startDrag(targetEl, startCX, startCY, isTouch) {
+    const els = selectedEls.includes(targetEl) ? selectedEls.slice() : [targetEl];
+    const starts = els.map(el => ({
+      el,
+      left: parseFloat(el.style.left),
+      top:  parseFloat(el.style.top),
+      w:    parseFloat(el.style.width),
+      h:    parseFloat(el.style.height)
+    }));
+    const minLeft   = Math.min(...starts.map(s => s.left));
+    const minTop    = Math.min(...starts.map(s => s.top));
+    const maxRight  = Math.max(...starts.map(s => s.left + s.w));
+    const maxBottom = Math.max(...starts.map(s => s.top  + s.h));
+    els.forEach(el => el.classList.add('dragging'));
 
     function move(cx, cy) {
-      const dx = cx - startCX;
-      const dy = cy - startCY;
-      const w = parseFloat(el.style.width);
-      const h = parseFloat(el.style.height);
-      el.style.left = Math.max(0, Math.min(canvas.offsetWidth  - w, startLeft + dx)) + 'px';
-      el.style.top  = Math.max(0, Math.min(canvas.offsetHeight - h, startTop  + dy)) + 'px';
+      let dx = cx - startCX;
+      let dy = cy - startCY;
+      dx = Math.max(-minLeft, Math.min(canvas.offsetWidth  - maxRight,  dx));
+      dy = Math.max(-minTop,  Math.min(canvas.offsetHeight - maxBottom, dy));
+      starts.forEach(s => {
+        s.el.style.left = (s.left + dx) + 'px';
+        s.el.style.top  = (s.top  + dy) + 'px';
+      });
     }
 
     function onMove(e)  { move(e.clientX, e.clientY); }
     function onTouch(e) { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }
     function end() {
-      el.classList.remove('dragging');
+      els.forEach(el => el.classList.remove('dragging'));
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', end);
       document.removeEventListener('touchmove', onTouch);
@@ -495,13 +566,13 @@
   };
 
   window.deleteSelected = function() {
-    if (!selectedEl) return;
-    selectedEl.remove(); selectedEl = null;
-    editPanel.classList.remove('visible');
+    if (selectedEls.length === 0) return;
+    selectedEls.forEach(el => el.remove());
+    setSelection([]);
   };
 
   document.addEventListener('keydown', function(e) {
-    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedEl && document.activeElement.tagName !== 'INPUT') deleteSelected();
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedEls.length && document.activeElement.tagName !== 'INPUT') deleteSelected();
   });
 
   window.resetLayout = function() {
