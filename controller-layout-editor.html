@@ -85,6 +85,8 @@
   .guide.ok { color: var(--green); }
   .guide.bad { color: #ef4444; }
   .canvas.multi .btn.selected .handle { display: none; }
+  .group-box { position: absolute; outline: 2px dashed var(--accent); outline-offset: 2px; pointer-events: none; z-index: 80; }
+  .group-box .handle { display: block; pointer-events: auto; }
   .status-dot { position: absolute; top: 14px; right: 18px; display: none; align-items: center; gap: 5px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--green); pointer-events: none; letter-spacing: 0.05em; }
   .status-dot.visible { display: flex; }
   .status-dot::before { content: ''; display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
@@ -119,6 +121,16 @@
   .align-bar .check.bad { color: #ef4444; }
   .align-bar .check.missing { color: var(--text-dim); opacity: 0.6; }
   .align-bar .label { color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; }
+
+  .multi-bar { width: 100%; max-width: 900px; font-family: 'DM Mono', monospace; font-size: 11px; margin-top: 10px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); display: none; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .multi-bar.visible { display: flex; }
+  .multi-bar .label { color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; }
+  .multi-bar .item { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.04); color: var(--text); }
+  .multi-bar .item .nm { color: var(--text-dim); }
+  .multi-bar .item.diff-w .w { color: #ef4444; font-weight: 700; }
+  .multi-bar .item.diff-h .h { color: #ef4444; font-weight: 700; }
+  .multi-bar .actions { display: inline-flex; gap: 6px; margin-left: auto; }
+  .multi-bar .actions button { padding: 5px 10px; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -198,6 +210,8 @@
 </div>
 
 <div class="align-bar" id="alignBar"></div>
+
+<div class="multi-bar" id="multiBar"></div>
 
 <div class="saved-panel">
   <div class="saved-title">Saved layouts</div>
@@ -314,6 +328,156 @@
       editPanel.classList.remove('visible');
     }
     syncPressedToggle();
+    updateGroupBox();
+    updateMultiBar();
+  }
+
+  const multiBar = document.getElementById('multiBar');
+  function updateMultiBar() {
+    if (selectedEls.length < 2) { multiBar.classList.remove('visible'); multiBar.innerHTML = ''; return; }
+    multiBar.classList.add('visible');
+    const items = selectedEls.map(el => ({
+      el,
+      name: (el.querySelector('.label')?.textContent || '').trim() || el.dataset.type,
+      w: Math.round(parseFloat(el.style.width)),
+      h: Math.round(parseFloat(el.style.height))
+    }));
+    const ws = new Set(items.map(i => i.w));
+    const hs = new Set(items.map(i => i.h));
+    const wDiff = ws.size > 1, hDiff = hs.size > 1;
+    let html = `<span class="label">Selection sizes</span>`;
+    items.forEach(i => {
+      const cls = `item${wDiff ? ' diff-w' : ''}${hDiff ? ' diff-h' : ''}`;
+      html += `<span class="${cls}"><span class="nm">${escapeHtml(i.name)}</span> <span class="w">${i.w}</span>×<span class="h">${i.h}</span></span>`;
+    });
+    html += `<span class="actions">
+      <button type="button" data-act="w">Match W</button>
+      <button type="button" data-act="h">Match H</button>
+      <button type="button" data-act="both">Match both</button>
+    </span>`;
+    multiBar.innerHTML = html;
+    multiBar.querySelectorAll('button[data-act]').forEach(btn => {
+      btn.addEventListener('click', () => matchSizes(btn.dataset.act));
+    });
+  }
+
+  function matchSizes(mode) {
+    if (selectedEls.length < 2) return;
+    const ref = selectedEls[0];
+    const w = parseFloat(ref.style.width);
+    const h = parseFloat(ref.style.height);
+    selectedEls.slice(1).forEach(el => {
+      const left = parseFloat(el.style.left), top = parseFloat(el.style.top);
+      if (mode === 'w' || mode === 'both') {
+        const nw = Math.min(w, canvas.offsetWidth - left);
+        el.style.width = nw + 'px';
+      }
+      if (mode === 'h' || mode === 'both') {
+        const nh = Math.min(h, canvas.offsetHeight - top);
+        el.style.height = nh + 'px';
+      }
+    });
+    updateGroupBox();
+    updateMultiBar();
+  }
+
+  function computeBBox(els) {
+    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+    els.forEach(el => {
+      const x = parseFloat(el.style.left), y = parseFloat(el.style.top);
+      const w = parseFloat(el.style.width), h = parseFloat(el.style.height);
+      if (x < l) l = x; if (y < t) t = y;
+      if (x + w > r) r = x + w; if (y + h > b) b = y + h;
+    });
+    return { l, t, w: r - l, h: b - t };
+  }
+
+  function setBoxRect(box, bb) {
+    box.style.left = bb.l + 'px'; box.style.top = bb.t + 'px';
+    box.style.width = bb.w + 'px'; box.style.height = bb.h + 'px';
+  }
+
+  function updateGroupBox() {
+    const existing = canvas.querySelector('.group-box');
+    if (existing) existing.remove();
+    if (selectedEls.length < 2) return;
+    const box = document.createElement('div');
+    box.className = 'group-box';
+    setBoxRect(box, computeBBox(selectedEls));
+    HANDLES.forEach(h => {
+      const handle = document.createElement('div');
+      handle.className = h.cls;
+      handle.dataset.dir = h.dir;
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        startGroupResize(e.clientX, e.clientY, h.dir, false);
+      });
+      handle.addEventListener('touchstart', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        startGroupResize(e.touches[0].clientX, e.touches[0].clientY, h.dir, true);
+      }, { passive: false });
+      box.appendChild(handle);
+    });
+    canvas.appendChild(box);
+  }
+
+  function startGroupResize(startCX, startCY, dir, isTouch) {
+    const els = selectedEls.slice();
+    const bb = computeBBox(els);
+    const starts = els.map(el => ({
+      el,
+      l: parseFloat(el.style.left), t: parseFloat(el.style.top),
+      w: parseFloat(el.style.width), h: parseFloat(el.style.height)
+    }));
+    const MIN = 20;
+    const box = canvas.querySelector('.group-box');
+
+    function move(cx, cy) {
+      const dx = cx - startCX, dy = cy - startCY;
+      let newL = bb.l, newT = bb.t, newW = bb.w, newH = bb.h;
+
+      if (dir.includes('e')) newW = Math.max(MIN, bb.w + dx);
+      if (dir.includes('s')) newH = Math.max(MIN, bb.h + dy);
+      if (dir.includes('w')) {
+        const wp = bb.w - dx;
+        if (wp >= MIN) { newW = wp; newL = bb.l + dx; }
+        else { newW = MIN; newL = bb.l + (bb.w - MIN); }
+      }
+      if (dir.includes('n')) {
+        const hp = bb.h - dy;
+        if (hp >= MIN) { newH = hp; newT = bb.t + dy; }
+        else { newH = MIN; newT = bb.t + (bb.h - MIN); }
+      }
+
+      newL = Math.max(0, newL); newT = Math.max(0, newT);
+      newW = Math.min(newW, canvas.offsetWidth  - newL);
+      newH = Math.min(newH, canvas.offsetHeight - newT);
+
+      const sx = bb.w > 0 ? newW / bb.w : 1;
+      const sy = bb.h > 0 ? newH / bb.h : 1;
+
+      starts.forEach(s => {
+        const fracL = bb.w > 0 ? (s.l - bb.l) / bb.w : 0;
+        const fracT = bb.h > 0 ? (s.t - bb.t) / bb.h : 0;
+        s.el.style.left   = (newL + fracL * newW) + 'px';
+        s.el.style.top    = (newT + fracT * newH) + 'px';
+        s.el.style.width  = Math.max(MIN, s.w * sx) + 'px';
+        s.el.style.height = Math.max(MIN, s.h * sy) + 'px';
+      });
+
+      if (box) setBoxRect(box, { l: newL, t: newT, w: newW, h: newH });
+    }
+
+    function onMove(e)  { move(e.clientX, e.clientY); }
+    function onTouch(e) { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); }
+    function end() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', end);
+      document.removeEventListener('touchmove', onTouch);
+      document.removeEventListener('touchend', end);
+    }
+    if (isTouch) { document.addEventListener('touchmove', onTouch, { passive: false }); document.addEventListener('touchend', end); }
+    else         { document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', end); }
   }
 
   function selectEl(el) { setSelection([el]); }
@@ -481,6 +645,8 @@
         s.el.style.left = (s.left + dx) + 'px';
         s.el.style.top  = (s.top  + dy) + 'px';
       });
+      const gb = canvas.querySelector('.group-box');
+      if (gb && els.length > 1) setBoxRect(gb, computeBBox(els));
     }
 
     function onMove(e)  { move(e.clientX, e.clientY); }
