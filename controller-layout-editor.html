@@ -2,11 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Controller Layout Editor</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { overscroll-behavior: contain; -webkit-text-size-adjust: 100%; }
+  button, .btn, .handle, .toggle { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  /* Prevent iOS Safari from zooming when focusing form fields */
+  @media (pointer: coarse) {
+    input[type="text"], input[type="number"] { font-size: 16px !important; }
+  }
   :root {
     --bg: #000000; --surface: #0a0a0a; --canvas-bg: #050505;
     --border: rgba(255,255,255,0.08); --border-hover: rgba(255,255,255,0.18);
@@ -35,7 +43,8 @@
   .hint-bar { width: 100%; max-width: 900px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.04em; margin-bottom: 10px; display: flex; gap: 16px; flex-wrap: wrap; }
   .hint-bar span::before { content: '· '; }
 
-  .canvas-outer { width: 100%; max-width: 900px; overflow-x: auto; }
+  .canvas-outer { width: 100%; max-width: 900px; overflow: hidden; }
+  .canvas-scale { width: 860px; height: 420px; transform-origin: top left; }
   .canvas {
     position: relative;
     background: var(--canvas-bg);
@@ -44,9 +53,13 @@
     height: 420px;
     border: 1.5px solid var(--border);
     user-select: none;
+    -webkit-user-select: none;
     cursor: default;
     flex-shrink: 0;
+    touch-action: none;
+    -webkit-touch-callout: none;
   }
+  .handle { touch-action: none; }
 
   .btn { position: absolute; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; color: #ffb47a; background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,122,26,0.55); border-radius: 50%; cursor: grab; box-sizing: border-box; touch-action: none; overflow: visible; }
   .btn:hover { border-color: rgba(255,122,26,0.85); }
@@ -173,7 +186,8 @@
   <span>Delete key to remove</span>
 </div>
 
-<div class="canvas-outer">
+<div class="canvas-outer" id="canvasOuter">
+  <div class="canvas-scale" id="canvasScale">
   <div class="canvas" id="canvas">
     <div class="status-dot" id="statusDot">Connected</div>
 
@@ -207,6 +221,7 @@
       <input type="number" class="dim-input" id="hVal" min="20" max="420" step="1">
     </div>
   </div>
+  </div>
 </div>
 
 <div class="align-bar" id="alignBar"></div>
@@ -221,6 +236,21 @@
 <script>
 (function() {
   const canvas      = document.getElementById('canvas');
+  const canvasScale = document.getElementById('canvasScale');
+  const canvasOuter = document.getElementById('canvasOuter');
+
+  let viewScale = 1;
+  function applyResponsiveScale() {
+    const avail = Math.min(900, window.innerWidth - 32);
+    viewScale = Math.min(1, avail / 860);
+    canvasScale.style.transform = `scale(${viewScale})`;
+    canvasOuter.style.height = (420 * viewScale) + 'px';
+  }
+  function getScale() { return viewScale || 1; }
+  applyResponsiveScale();
+  window.addEventListener('resize', applyResponsiveScale);
+  window.addEventListener('orientationchange', applyResponsiveScale);
+
   const editPanel   = document.getElementById('editPanel');
   const labelInput  = document.getElementById('labelInput');
   const wSlider     = document.getElementById('wSlider');
@@ -433,7 +463,8 @@
     const box = canvas.querySelector('.group-box');
 
     function move(cx, cy) {
-      const dx = cx - startCX, dy = cy - startCY;
+      const s = getScale();
+      const dx = (cx - startCX) / s, dy = (cy - startCY) / s;
       let newL = bb.l, newT = bb.t, newW = bb.w, newH = bb.h;
 
       if (dir.includes('e')) newW = Math.max(MIN, bb.w + dx);
@@ -485,8 +516,9 @@
 
   function startMarquee(startCX, startCY, isTouch) {
     const cRect = canvas.getBoundingClientRect();
-    const x0 = startCX - cRect.left;
-    const y0 = startCY - cRect.top;
+    const s0 = getScale();
+    const x0 = (startCX - cRect.left) / s0;
+    const y0 = (startCY - cRect.top) / s0;
     const marquee = document.createElement('div');
     marquee.className = 'marquee';
     canvas.appendChild(marquee);
@@ -494,7 +526,8 @@
     let bounds = { left: x0, top: y0, right: x0, bottom: y0 };
 
     function update(cx, cy) {
-      const x = cx - cRect.left, y = cy - cRect.top;
+      const s = getScale();
+      const x = (cx - cRect.left) / s, y = (cy - cRect.top) / s;
       const left = Math.min(x0, x), top = Math.min(y0, y);
       const w = Math.abs(x - x0), h = Math.abs(y - y0);
       marquee.style.left = left + 'px';
@@ -637,8 +670,9 @@
     els.forEach(el => el.classList.add('dragging'));
 
     function move(cx, cy) {
-      let dx = cx - startCX;
-      let dy = cy - startCY;
+      const s = getScale();
+      let dx = (cx - startCX) / s;
+      let dy = (cy - startCY) / s;
       dx = Math.max(-minLeft, Math.min(canvas.offsetWidth  - maxRight,  dx));
       dy = Math.max(-minTop,  Math.min(canvas.offsetHeight - maxBottom, dy));
       starts.forEach(s => {
@@ -670,8 +704,9 @@
     const MIN = 20;
 
     function move(cx, cy) {
-      const dx = cx - startCX;
-      const dy = cy - startCY;
+      const s = getScale();
+      const dx = (cx - startCX) / s;
+      const dy = (cy - startCY) / s;
       let newL = startLeft, newT = startTop, newW = startW, newH = startH;
 
       if (dir.includes('e')) newW = Math.max(MIN, startW + dx);
