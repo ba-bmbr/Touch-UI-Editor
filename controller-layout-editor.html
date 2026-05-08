@@ -15,6 +15,29 @@
   @media (pointer: coarse) {
     input[type="text"], input[type="number"] { font-size: 16px !important; }
   }
+
+  /* Compact mobile layout */
+  @media (max-width: 760px) {
+    body { padding: 10px 8px 24px; }
+    header { margin-bottom: 8px; }
+    .logo { font-size: 13px; }
+    .tagline { display: none; }
+    .toolbar { gap: 4px; margin-bottom: 6px; }
+    .toolbar-label { font-size: 9px; }
+    .toolbar-divider { display: none; }
+    button { padding: 5px 9px; font-size: 11px; border-radius: 6px; }
+    input[type="text"] { width: 130px; padding: 5px 9px; }
+    .hint-bar { display: none; }
+    .align-bar, .multi-bar { padding: 7px 10px; font-size: 10px; gap: 8px; margin-top: 6px; border-radius: 8px; }
+    .align-bar .label, .multi-bar .label { font-size: 9px; }
+    .saved-panel { margin-top: 10px; }
+    .saved-title { font-size: 9px; margin-bottom: 5px; }
+    .saved-item { padding: 4px 8px; font-size: 11px; }
+    .saved-item button { padding: 2px 6px; font-size: 10px; }
+    .edit-panel { padding: 7px 10px; gap: 6px; border-radius: 9px; bottom: 8px; }
+    .edit-panel label { font-size: 9px; }
+    .edit-panel input[type=range] { width: 56px; }
+  }
   :root {
     --bg: #000000; --surface: #0a0a0a; --canvas-bg: #050505;
     --border: rgba(255,255,255,0.08); --border-hover: rgba(255,255,255,0.18);
